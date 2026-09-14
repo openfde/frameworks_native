@@ -33,6 +33,7 @@
 #include <system/window.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
+#include <cutils/properties.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -83,7 +84,10 @@ void RenderSurface::initialize() {
 
     int status = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
     ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
-    status = native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
+    char value[PROPERTY_VALUE_MAX];
+    property_get("openfde.x11.display", value, "0");
+    status = native_window_set_buffers_format(window,
+        atoi(value) ? HAL_PIXEL_FORMAT_BGRA_8888 : HAL_PIXEL_FORMAT_RGBA_8888);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to RGBA888: %d", status);
     status = native_window_set_usage(window, DEFAULT_USAGE);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
