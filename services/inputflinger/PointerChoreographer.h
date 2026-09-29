@@ -96,6 +96,10 @@ public:
     virtual bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
                                 ui::LogicalDisplayId displayId, DeviceId deviceId) = 0;
     /**
+     * Sets a custom icon that is shown for all mouse pointers (global cursor override).
+     */
+    virtual void setCustomPointerIcon(const SpriteIcon& icon) = 0;
+    /**
      * Set whether pointer icons for mice, touchpads, and styluses should be visible on the
      * given display.
      */
@@ -139,6 +143,7 @@ public:
     void setStylusPointerIconEnabled(bool enabled) override;
     bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
                         ui::LogicalDisplayId displayId, DeviceId deviceId) override;
+    void setCustomPointerIcon(const SpriteIcon& icon) override;
     void setPointerIconVisibility(ui::LogicalDisplayId displayId, bool visible) override;
     void setFocusedDisplay(ui::LogicalDisplayId displayId) override;
     void setDisplayTopology(const DisplayTopologyGraph& displayTopologyGraph);
