@@ -975,6 +975,13 @@ bool PointerChoreographer::setPointerIcon(
     return false;
 }
 
+void PointerChoreographer::setCustomPointerIcon(const SpriteIcon& icon) {
+    std::scoped_lock _l(getLock());
+    for (auto& [displayId, controller] : mMousePointersByDisplay) {
+        controller->setCustomPointerIcon(icon);
+    }
+}
+
 void PointerChoreographer::setPointerIconVisibility(ui::LogicalDisplayId displayId, bool visible) {
     std::scoped_lock lock(getLock());
     if (visible) {
