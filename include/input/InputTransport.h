@@ -346,6 +346,14 @@ public:
     /* Gets the underlying input channel. */
     inline InputChannel& getChannel() const { return *mChannel; }
 
+    /* Resets the outbound event verifier state for the given device.
+     *
+     * The verifier tracks the pointer/hover/down-time state of the events that were published to
+     * this channel for each device. Call this when an event was rejected (BAD_VALUE) so that the
+     * following events of the stream can be verified again instead of failing forever.
+     */
+    void resetVerifierStateForDevice(DeviceId deviceId) { mInputVerifier.resetDevice(deviceId); }
+
     /* Publishes a key event to the input channel.
      *
      * Returns OK on success.

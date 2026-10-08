@@ -32,6 +32,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <time.h>
 #include <unistd.h>
 
 #define LOG_TAG "EventHub"
@@ -1186,6 +1187,82 @@ std::optional<PropertyMap> EventHub::getConfiguration(RawDeviceId deviceId) cons
         return {};
     }
     return *device->configuration;
+}
+
+// FDE KeyAssist: turn a MotionEvent into the raw multi-touch protocol B stream that the
+// wayland touch pipe expects, and write it into the pipe. The input reader will decode it
+// exactly like a real touchscreen event.
+void EventHub::injectMotionEvent(MotionEvent* motion, int32_t /*syncMode*/,
+                                 int32_t /*timeoutMillis*/, int32_t /*policyFlags*/) const {
+    if (motion == nullptr) {
+        return;
+    }
+
+    // The compositor reports the user's own contacts starting at slot 0, so use dedicated slots
+    // here to avoid clobbering them. SOURCE_TOUCHSCREEN means the caller synthesizes the primary
+    // finger, any other source means the caller wants a second, independent finger.
+    const bool isTouchScreen =
+            motion->getSource() == static_cast<uint32_t>(AINPUT_SOURCE_TOUCHSCREEN);
+    const int32_t slot = isTouchScreen ? 1 : 2;
+    const int32_t trackingId = isTouchScreen ? 2 : 3;
+
+    struct timespec rt;
+    if (clock_gettime(CLOCK_MONOTONIC, &rt) == -1) {
+        ALOGE("%s: clock_gettime failed: %s", __func__, strerror(errno));
+        rt.tv_sec = 0;
+        rt.tv_nsec = 0;
+    }
+
+    struct input_event event[6];
+    size_t n = 0;
+    auto addEvent = [&](uint16_t type, uint16_t code, int32_t value) {
+        event[n].input_event_sec = rt.tv_sec;
+        event[n].input_event_usec = rt.tv_nsec / 1000;
+        event[n].type = type;
+        event[n].code = code;
+        event[n].value = value;
+        n++;
+    };
+
+    switch (motion->getAction()) {
+        case AMOTION_EVENT_ACTION_DOWN:
+        case AMOTION_EVENT_ACTION_MOVE: {
+            addEvent(EV_ABS, ABS_MT_SLOT, slot);
+            addEvent(EV_ABS, ABS_MT_TRACKING_ID, trackingId);
+            addEvent(EV_ABS, ABS_MT_POSITION_X, static_cast<int32_t>(motion->getX(0)));
+            addEvent(EV_ABS, ABS_MT_POSITION_Y, static_cast<int32_t>(motion->getY(0)));
+            addEvent(EV_ABS, ABS_MT_PRESSURE, 50);
+            addEvent(EV_SYN, SYN_REPORT, 0);
+            break;
+        }
+        case AMOTION_EVENT_ACTION_UP:
+        case AMOTION_EVENT_ACTION_CANCEL: {
+            addEvent(EV_ABS, ABS_MT_SLOT, slot);
+            addEvent(EV_ABS, ABS_MT_TRACKING_ID, -1);
+            addEvent(EV_SYN, SYN_REPORT, 0);
+            break;
+        }
+        default:
+            // Only the primary pointer of the event is forwarded. ACTION_POINTER_DOWN,
+            // ACTION_POINTER_UP and the remaining actions are intentionally ignored.
+            return;
+    }
+
+    // The device fd is opened with O_NONBLOCK, so writing while the EventHub lock is held cannot
+    // block: if the pipe is full the events are dropped instead of deadlocking the input thread.
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceByPathLocked(INPUT_PIPE_NAME[WL_INPUT_TOUCH]);
+    if (device == nullptr || device->fd < 0) {
+        ALOGW("%s: touch pipe '%s' is not available", __func__, INPUT_PIPE_NAME[WL_INPUT_TOUCH]);
+        return;
+    }
+
+    const size_t size = n * sizeof(struct input_event);
+    const ssize_t written = write(device->fd, event, size);
+    if (written != static_cast<ssize_t>(size)) {
+        ALOGE("%s: failed to write %zu touch events to '%s': %s", __func__, n,
+              INPUT_PIPE_NAME[WL_INPUT_TOUCH], strerror(errno));
+    }
 }
 
 std::optional<RawAbsoluteAxisInfo> EventHub::getAbsoluteAxisInfo(RawDeviceId deviceId,

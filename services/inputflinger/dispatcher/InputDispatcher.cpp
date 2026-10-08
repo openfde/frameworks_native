@@ -3938,8 +3938,25 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
                 status = publishMotionEvent(*connection, *dispatchEntry);
                 if (status == BAD_VALUE) {
+                    // FDE: the outbound event verifier (InputTransport) rejected this motion event,
+                    // which means the event stream published to this channel is inconsistent. In
+                    // practice this happens with app-injected streams: all injected events share
+                    // the same device id (VIRTUAL_KEYBOARD_ID), so mixing pointer ids (e.g. 0 for
+                    // taps, 2/3 for gestures) or injecting concurrently from several threads makes
+                    // the verifier's per-device pointer state diverge.
+                    // AOSP aborts system_server here, which turns an app bug into a full framework
+                    // restart. Log the dispatcher state, reset the verifier state for this device
+                    // and drop the offending event instead, so that input keeps working.
                     logDispatchStateLocked();
-                    LOG(FATAL) << "Publisher failed for " << motionEntry;
+                    LOG(ERROR) << "Publisher rejected an inconsistent event for channel '"
+                               << connection->getInputChannelName() << "', dropping it: "
+                               << motionEntry;
+                    connection->inputPublisher.resetVerifierStateForDevice(motionEntry.deviceId);
+                    // Nothing was sent to the application, so the entry can be dropped without
+                    // waiting for a response. Continue with the next queued event.
+                    connection->outboundQueue.erase(connection->outboundQueue.begin());
+                    traceOutboundQueueLength(*connection);
+                    continue;
                 }
                 if (mTracer) {
                     ensureEventTraced(motionEntry);

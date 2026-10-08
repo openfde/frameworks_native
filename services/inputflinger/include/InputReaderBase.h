@@ -374,6 +374,16 @@ public:
     /* Return true if the device can send input events to the specified display. */
     virtual bool canDispatchToDisplay(DeviceId deviceId, ui::LogicalDisplayId displayId) = 0;
 
+    /**
+     * FDE KeyAssist extension: inject a MotionEvent as raw touchscreen events into the input
+     * reader, instead of injecting it into the dispatcher. This makes it possible for a
+     * privileged app to simulate extra fingers that behave like real touch contacts.
+     *
+     * The default implementation is a no-op.
+     */
+    virtual void injectMotionEvent(MotionEvent* event, int32_t syncMode, int32_t timeoutMillis,
+                                   int32_t policyFlags) {}
+
     /* Enable sensor in input reader mapper. */
     virtual bool enableSensor(DeviceId deviceId, InputDeviceSensorType sensorType,
                               std::chrono::microseconds samplingPeriod,

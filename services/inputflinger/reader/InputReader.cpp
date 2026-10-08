@@ -951,6 +951,11 @@ void InputReader::sysfsNodeChanged(const std::string& sysfsNodePath) {
     mEventHub->wake();
 }
 
+void InputReader::injectMotionEvent(MotionEvent* event, int32_t syncMode, int32_t timeoutMillis,
+                                    int32_t policyFlags) {
+    mEventHub->injectMotionEvent(event, syncMode, timeoutMillis, policyFlags);
+}
+
 DeviceId InputReader::getLastUsedInputDeviceId() {
     std::scoped_lock _l(mLock);
     return mLastUsedDeviceId;

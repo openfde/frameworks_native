@@ -25,6 +25,20 @@
 
 namespace android::inputdispatcher {
 
+// FDE: always allow multiple input devices to be active in the same window at the same time
+// (AOSP flag: com.android.input.flags.enable_multi_device_same_window_stream).
+//
+// Without it, a new device going down cancels the stream of the device that was active before,
+// which is exactly what KeyAssist triggers: the synthesized touch stream (injected, source 0xd002
+// which also carries the stylus bits) alternates with the real mouse/touch stream in the same
+// window, so the dispatcher keeps synthesizing CANCEL events for the injected stream. Those
+// cancels are then rejected by the outbound event verification in InputTransport ("Bad stream"),
+// and the dispatcher treats that as fatal ("Publisher failed for ..."), aborting system_server.
+//
+// The same change exists in the Android 14 tree as "fix system crash when multi touch"; there it
+// was added as an aconfig flag, which is not enabled in this product's release configuration.
+static constexpr bool kFdeAllowMultiDeviceSameWindowStream = true;
+
 InputState::InputState(const IdGenerator& idGenerator) : mIdGenerator(idGenerator) {}
 
 InputState::~InputState() {}
@@ -97,7 +111,7 @@ bool InputState::trackMotion(const MotionEntry& entry, ftl::Flags<MotionFlag> fl
         return true;
     }
 
-    if (!input_flags::enable_multi_device_same_window_stream()) {
+    if (!kFdeAllowMultiDeviceSameWindowStream) {
         if (!mMotionMementos.empty()) {
             const MotionMemento& lastMemento = mMotionMementos.back();
             if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) &&
@@ -355,7 +369,7 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry) cons
         return false;
     }
 
-    if (!input_flags::enable_multi_device_same_window_stream()) {
+    if (!kFdeAllowMultiDeviceSameWindowStream) {
         if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties)) {
             // A stylus is already active.
             if (isStylusEvent(motionEntry.source, motionEntry.pointerProperties) &&

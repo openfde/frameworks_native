@@ -269,6 +269,16 @@ public:
      */
     virtual std::optional<PropertyMap> getConfiguration(RawDeviceId deviceId) const = 0;
 
+    /**
+     * FDE KeyAssist extension: inject a MotionEvent as raw multi-touch events into the
+     * wayland touch pipe (/dev/input/wl_touch_events), so that the input reader picks the
+     * event up as if it came from the touchscreen device itself.
+     *
+     * The default implementation is a no-op, only the real EventHub can inject events.
+     */
+    virtual void injectMotionEvent(MotionEvent* event, int32_t syncMode, int32_t timeoutMillis,
+                                   int32_t policyFlags) const {}
+
     virtual std::optional<RawAbsoluteAxisInfo> getAbsoluteAxisInfo(RawDeviceId deviceId,
                                                                    int axis) const = 0;
 
@@ -519,6 +529,9 @@ public:
     int32_t getDeviceControllerNumber(RawDeviceId deviceId) const override final;
 
     std::optional<PropertyMap> getConfiguration(RawDeviceId deviceId) const override final;
+
+    void injectMotionEvent(MotionEvent* event, int32_t syncMode, int32_t timeoutMillis,
+                           int32_t policyFlags) const override final;
 
     std::optional<RawAbsoluteAxisInfo> getAbsoluteAxisInfo(RawDeviceId deviceId,
                                                            int axis) const override final;

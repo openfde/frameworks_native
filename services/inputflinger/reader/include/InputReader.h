@@ -134,6 +134,9 @@ public:
 
     void sysfsNodeChanged(const std::string& sysfsNodePath) override;
 
+    void injectMotionEvent(MotionEvent* event, int32_t syncMode, int32_t timeoutMillis,
+                           int32_t policyFlags) override;
+
     DeviceId getLastUsedInputDeviceId() override;
 
     void notifyMouseCursorFadedOnTyping() override;

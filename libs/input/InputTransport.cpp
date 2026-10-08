@@ -94,7 +94,11 @@ android::base::unique_fd dupChannelFd(int fd) {
 // we really need.  So we make it smaller.  It just needs to be big enough to hold
 // a few dozen large multi-finger motion events in the case where an application gets
 // behind processing touches.
-constexpr size_t SOCKET_BUFFER_SIZE = 32 * 1024;
+// FDE: enlarged from 32K to 128K (same as the Android 14 "fix pipe full problem when use mouse"
+// change). Mouse driven touch streams and synthesized (injected) touch streams can deliver events
+// faster than the application consumes them; with the smaller buffer the channel fills up, the
+// dispatcher cannot publish and events get delayed or dropped.
+constexpr size_t SOCKET_BUFFER_SIZE = 128 * 1024;
 
 /**
  * Crash if the events that are getting sent to the InputPublisher are inconsistent.
