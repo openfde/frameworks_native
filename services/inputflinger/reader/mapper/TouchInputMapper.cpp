@@ -906,6 +906,18 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mDeviceMode = DeviceMode::DISABLED;
     }
 
+    // For the OpenFDE wayland virtual touchscreen, the raw ABS_MT_POSITION_X/Y range is
+    // populated by EventHub from the openfde.display_width/height system properties at device
+    // open time. If the display resolution changes at runtime without reopening the device,
+    // the cached raw range becomes stale relative to the coordinates reported by the host,
+    // which are already in display pixels. Refresh the raw X/Y range from the current
+    // viewport so that computeInputTransforms() (which uses deviceWidth/deviceHeight) scales
+    // correctly. Only applies to the wayland virtual device; real touchscreens are unaffected.
+    if (newViewportOpt && getDeviceContext().getDeviceIdentifier().location == "wayland") {
+        mRawPointerAxes.x.maxValue = newViewportOpt->deviceWidth;
+        mRawPointerAxes.y.maxValue = newViewportOpt->deviceHeight;
+    }
+
     // Raw width and height in the natural orientation.
     const ui::Size rawSize{mRawPointerAxes.getRawWidth(), mRawPointerAxes.getRawHeight()};
 
