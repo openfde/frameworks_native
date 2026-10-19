@@ -348,8 +348,10 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
 
     mPointerVelocityControl.move(when, &deltaX, &deltaY);
 
-    float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
-    float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
+    //float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
+    //float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
+    float xCursorPosition = mCursorPositionAccumulator.getX();
+    float yCursorPosition = mCursorPositionAccumulator.getY();
 
     // Moving an external trackball or mouse should wake the device.
     // We don't do this for internal cursor devices to prevent them from waking up
@@ -374,25 +376,26 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         moveCoords.clear();
         moveCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         moveCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
+        ALOGD("CursorInputMapper::sync: deltaX: %f, deltaY: %f ", deltaX, deltaY);
         if (mSource != AINPUT_SOURCE_MOUSE) {
             // Pointer capture and navigation modes
             moveCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
             moveCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
         }
         if (mSource == AINPUT_SOURCE_MOUSE) {
-            moveCoords.setAxisValue(AMOTION_EVENT_AXIS_X, mCursorPositionAccumulator.getX());
-            moveCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, mCursorPositionAccumulator.getY());
-            ALOGD("CursorInputMapper::sync: mCursorPositionAccumulator.getX(): %d, mCursorPositionAccumulator.getY(): %d ", mCursorPositionAccumulator.getX(), mCursorPositionAccumulator.getY());
+            moveCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+            moveCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+            ALOGD("CursorInputMapper::sync: xCursorPosition: %d, yCursorPosition: %d ", xCursorPosition, yCursorPosition);
         }
 
         moveCoords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, wasDown ? 1.0f : 0.0f);
 
         out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                       mSource, *mDisplayId, policyFlags, action, 0, 0, metaState,
-                                       lastButtonState, MotionClassification::NONE, 1,
-                                       &pointerProperties, &moveCoords, mXPrecision, mYPrecision,
-                                       mCursorPositionAccumulator.getX(), mCursorPositionAccumulator.getY(), downTime,
-                                       /*videoFrames=*/{}));
+                                   mSource, *mDisplayId, policyFlags, action, 0, 0, metaState,
+                                   lastButtonState, MotionClassification::NONE, 1,
+                                   &pointerProperties, &moveCoords, mXPrecision, mYPrecision,
+                                   xCursorPosition, yCursorPosition), downTime,
+                                   /*videoFrames=*/{}));
     }
 
     // Synthesize key down from buttons if needed.

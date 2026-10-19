@@ -1028,6 +1028,9 @@ void SkiaRenderEngine::drawLayersInternal(
         logSettings(display);
     }
     for (const auto& layer : layers) {
+        if (layer.name.find("[BBQ] Sprite") != std::string::npos && display.namePlusId.find("Recording") == std::string::npos) {
+            continue;
+        }
         SFTRACE_FORMAT("DrawLayer: %s", layer.name.c_str());
 
         if (kPrintLayerSettings) {
@@ -1411,6 +1414,7 @@ void SkiaRenderEngine::drawLayersInternal(
                                                               : kUnpremul_SkAlphaType;
             sk_sp<SkImage> image =
                     imageTextureRef->makeImage(layerDataspace, alphaType, colorSpaceOptions);
+
             // If the image could not be created in such a way to respect item.isOpaque, then we
             // need to use a workaround where we treat the image as premultiplied and apply
             // SkBlendMode::kPlus with opaque black.
