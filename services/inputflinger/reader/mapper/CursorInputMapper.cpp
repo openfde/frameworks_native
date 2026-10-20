@@ -385,7 +385,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         if (mSource == AINPUT_SOURCE_MOUSE) {
             moveCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
             moveCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
-            ALOGD("CursorInputMapper::sync: xCursorPosition: %d, yCursorPosition: %d ", xCursorPosition, yCursorPosition);
+            ALOGD("CursorInputMapper::sync: xCursorPosition: %f, yCursorPosition: %f ", xCursorPosition, yCursorPosition);
         }
 
         moveCoords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, wasDown ? 1.0f : 0.0f);
@@ -394,7 +394,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                    mSource, *mDisplayId, policyFlags, action, 0, 0, metaState,
                                    lastButtonState, MotionClassification::NONE, 1,
                                    &pointerProperties, &moveCoords, mXPrecision, mYPrecision,
-                                   xCursorPosition, yCursorPosition), downTime,
+                                   xCursorPosition, yCursorPosition, downTime,
                                    /*videoFrames=*/{}));
     }
 
