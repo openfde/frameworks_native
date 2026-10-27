@@ -629,9 +629,11 @@ Error HidlComposer::setClientTarget(Display display, uint32_t slot, const sp<Gra
     const native_handle_t* handle = nullptr;
     if (target.get()) {
         if (mOpenfdeDisplay)
-            mOpenfdeDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
+            mOpenfdeDisplay->setTargetLayerHandleInfo(display, target->getPixelFormat(),
+                                                      target->getStride());
         if (mOpenfdeDisplay_1)
-            mOpenfdeDisplay_1->setTargetLayerSize(target->getWidth(), target->getHeight());
+            mOpenfdeDisplay_1->setTargetLayerSize(display, target->getWidth(),
+                                                  target->getHeight());
         handle = target->getNativeBuffer()->handle;
     }
 
@@ -1433,19 +1435,20 @@ Error HidlComposer::getClientTargetProperty(
     return Error::NONE;
 }
 
-V2_1::Error HidlComposer::setLayerName(Display, Layer layer, std::string name) {
+V2_1::Error HidlComposer::setLayerName(Display display, Layer layer, std::string name) {
     if (!mOpenfdeDisplay) {
         ALOGE("HidlComposer::setLayerName mOpenfdeDisplay is null");
         return V2_1::Error::UNSUPPORTED;
     }
     if (mLayersNameMap[mLayersZMap[layer]] != name) {
         mLayersNameMap[mLayersZMap[layer]] = name;
-        return mOpenfdeDisplay->setLayerName(mLayersZMap[layer], name);
+        return mOpenfdeDisplay->setLayerName(display, mLayersZMap[layer], name);
     } else
         return V2_1::Error::NONE;
 }
 
-V2_1::Error HidlComposer::setLayerHandleInfo(Display, Layer layer, const sp<GraphicBuffer>& buffer) {
+V2_1::Error HidlComposer::setLayerHandleInfo(Display display, Layer layer,
+                                             const sp<GraphicBuffer>& buffer) {
     V2_1::Error error;
     if (!mOpenfdeDisplay)
         return V2_1::Error::UNSUPPORTED;
@@ -1453,14 +1456,14 @@ V2_1::Error HidlComposer::setLayerHandleInfo(Display, Layer layer, const sp<Grap
     if (buffer.get() &&
             mLayersHandleMap[mLayersZMap[layer]] != buffer->getNativeBuffer()->handle) {
         mLayersHandleMap[mLayersZMap[layer]] = buffer->getNativeBuffer()->handle;
-        error = mOpenfdeDisplay->setLayerHandleInfo(mLayersZMap[layer],
+        error = mOpenfdeDisplay->setLayerHandleInfo(display, mLayersZMap[layer],
                                                     buffer->getPixelFormat(),
                                                     buffer->getStride());
         if (error != V2_1::Error::NONE)
             return error;
 
         if (mOpenfdeDisplay_1)
-            mOpenfdeDisplay_1->setLayerSize(mLayersZMap[layer],
+            mOpenfdeDisplay_1->setLayerSize(display, mLayersZMap[layer],
                                             buffer->getWidth(), buffer->getHeight());
     }
     return V2_1::Error::NONE;
