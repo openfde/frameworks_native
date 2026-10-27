@@ -406,9 +406,10 @@ private:
 
     sp<V1_0::IOpenfdeDisplay> mOpenfdeDisplay;
     sp<V1_1::IOpenfdeDisplay> mOpenfdeDisplay_1;
-    std::map<Layer, int32_t> mLayersZMap;
-    std::map<int32_t, std::string> mLayersNameMap;
-    std::map<int32_t, const native_handle_t*> mLayersHandleMap;
+    // Vendor-extension caches, keyed by the hwc2 layer id; they only exist to
+    // skip redundant binder calls when a layer's name/buffer did not change.
+    std::map<Layer, std::string> mLayersNameMap;
+    std::map<Layer, const native_handle_t*> mLayersHandleMap;
 };
 
 } // namespace android::Hwc2
