@@ -627,7 +627,7 @@ aidl::android::hardware::graphics::composer3::Composition RequestedLayerState::g
     if (potentialCursor) {
         return Composition::CURSOR;
     }
-    return Composition::CLIENT;
+    return Composition::DEVICE;
 }
 
 Rect RequestedLayerState::reduce(const Rect& win, const Region& exclude) {
