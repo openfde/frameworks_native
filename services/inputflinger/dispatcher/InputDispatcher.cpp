@@ -5494,6 +5494,15 @@ bool InputDispatcher::DispatcherWindowInfo::windowAcceptsTouchAt(const gui::Wind
 
 ui::Transform InputDispatcher::DispatcherWindowInfo::getCrossDisplayTransform(
         ui::LogicalDisplayId sourceDisplay, ui::LogicalDisplayId destinationDisplay) const {
+    // If either display has been removed (e.g. hot-unplugged while a cross-display
+    // drag was in progress), we can no longer compute a meaningful transform. The
+    // touch on that display is being cancelled, so return identity instead of
+    // calling into DisplayTopologyGraph, whose LOG_ALWAYS_FATAL_IF would otherwise
+    // crash system_server ("Invalid display ... in globalDpToLocalPxTransform").
+    if (!mTopology.graph.contains(sourceDisplay) ||
+        !mTopology.graph.contains(destinationDisplay)) {
+        return ui::Transform();
+    }
     const ui::Transform sourceTransform = getDisplayTransform(sourceDisplay);
     return mTopology.globalDpToLocalPxTransform(destinationDisplay) *
             (mTopology.localPxToGlobalDpTransform(sourceDisplay) * sourceTransform);
@@ -5647,6 +5656,33 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
     if (windowInfoHandles.empty()) {
         // Remove all handles on a display if there are no windows left.
         mWindowInfos.removeDisplay(displayId);
+
+        // Cancel any in-progress touch/cursor gestures that target a window on this
+        // display. The normal per-window cancellation below (updateFromWindowInfo) is
+        // skipped because we return early here, so without this the touch/cursor state
+        // lingers after the display is gone. A later dispatch that still references it
+        // then trips LOG_ALWAYS_FATAL_IF in DisplayTopologyGraph
+        // ("Invalid display ... in globalDpToLocalPxTransform") and crashes
+        // system_server.
+        //
+        // We must filter by the *window's* display, not by the touch state's keyed
+        // display. A cross-display drag that started on this display but moved
+        // elsewhere is keyed under the other display, so a displayId-keyed cancel
+        // would miss it and leave the dangling reference behind.
+        {
+            ScopedSyntheticEventTracer traceContext(mTracer);
+            mTouchStates.forAllTouchedWindows(
+                    [&](const sp<gui::WindowInfoHandle>& windowHandle) {
+                        if (windowHandle->getInfo()->displayId == displayId) {
+                            CancellationOptions options(
+                                    CancellationOptions::Mode::CANCEL_POINTER_EVENTS,
+                                    "Display lost all windows", windowHandle,
+                                    traceContext.getTracker());
+                            base::ScopedLockAssertion assumeLocked(mLock);
+                            synthesizeCancellationEventsForWindowLocked(options);
+                        }
+                    });
+        }
         return;
     }
 
