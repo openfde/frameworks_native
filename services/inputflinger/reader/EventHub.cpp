@@ -37,7 +37,7 @@
 
 #define LOG_TAG "EventHub"
 
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #include <android-base/file.h>
 #include <android-base/parseint.h>
 #include <android-base/stringprintf.h>
@@ -1056,6 +1056,7 @@ const int EventHub::EPOLL_MAX_EVENTS;
 
 enum {
     WL_INPUT_TOUCH,
+    WL_INPUT_TOUCH_EXTERNAL,
     WL_INPUT_KEYBOARD,
     WL_INPUT_POINTER,
     WL_INPUT_TOTAL
@@ -1063,12 +1064,14 @@ enum {
 
 static const char *INPUT_PIPE_NAME[WL_INPUT_TOTAL] = {
     "/dev/input/wl_touch_events",
+    "/dev/input/wl_touch_external_events",
     "/dev/input/wl_keyboard_events",
     "/dev/input/wl_pointer_events"
 };
 
 static const char *INPUT_TYPE_NAME[WL_INPUT_TOTAL] = {
     "wayland_touch",
+    "wayland_touch_external",
     "wayland_keyboard",
     "wayland_pointer"
 };
@@ -2218,7 +2221,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
             if (device == nullptr) {
                 ALOGE("Received unexpected epoll event 0x%08x for unknown fd %d.", eventItem.events,
                       eventItem.data.fd);
-                ALOG_ASSERT(!DEBUG);
+                //ALOG_ASSERT(!DEBUG);
                 continue;
             }
             if (device->videoDevice && eventItem.data.fd == device->videoDevice->getFd()) {
@@ -2237,7 +2240,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                 } else {
                     ALOGW("Received unexpected epoll event 0x%08x for device %s.", eventItem.events,
                           device->videoDevice->getName().c_str());
-                    ALOG_ASSERT(!DEBUG);
+                    //ALOG_ASSERT(!DEBUG);
                 }
                 continue;
             }
@@ -2598,7 +2601,7 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
 
     char buffer[80];
 
-    ALOGV("Opening device: %s", devicePath.c_str());
+    ALOGE("Opening device: %s", devicePath.c_str());
 
     int fd = open(devicePath.c_str(), O_RDWR | O_CLOEXEC | O_NONBLOCK);
     if (fd < 0) {
@@ -2920,7 +2923,20 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
         device->setLedForControllerLocked();
     }
     } else {
-        if (inputType == WL_INPUT_TOUCH) {
+        if (devicePath == "/dev/input/wl_touch_events") {
+            device->classes.clear(InputDeviceClass::EXTERNAL);
+            ALOGE("Force bind %s to INTERNAL", devicePath.c_str());
+        } else if (devicePath == "/dev/input/wl_touch_external_events") {
+            device->classes |= InputDeviceClass::EXTERNAL;
+            if (device->configuration) {
+                device->configuration->addProperty("touch.displayId", "local:1");
+                device->configuration->addProperty("device.internal", "0");
+            }
+            ALOGE("Force bind %s to EXTERNAL", devicePath.c_str());
+        } else if (device->isExternalDeviceLocked()) {
+            device->classes |= InputDeviceClass::EXTERNAL;
+        }
+        if (inputType == WL_INPUT_TOUCH || inputType == WL_INPUT_TOUCH_EXTERNAL) {
             device->classes |= InputDeviceClass::TOUCH_MT;
 
             device->propBitmask.set(INPUT_PROP_DIRECT, true);

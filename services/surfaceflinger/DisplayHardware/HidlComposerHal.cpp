@@ -392,7 +392,8 @@ Error HidlComposer::createLayer(Display display, Layer* outLayer) {
 }
 
 Error HidlComposer::destroyLayer(Display display, Layer layer) {
-    mLayersZMap.erase(layer);
+    mLayersNameMap.erase(layer);
+    mLayersHandleMap.erase(layer);
     auto ret = mClient->destroyLayer(display, layer);
     return static_cast<Error>(unwrapRet(ret));
 }
@@ -629,9 +630,11 @@ Error HidlComposer::setClientTarget(Display display, uint32_t slot, const sp<Gra
     const native_handle_t* handle = nullptr;
     if (target.get()) {
         if (mOpenfdeDisplay)
-            mOpenfdeDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
+            mOpenfdeDisplay->setTargetLayerHandleInfo(display, target->getPixelFormat(),
+                                                      target->getStride());
         if (mOpenfdeDisplay_1)
-            mOpenfdeDisplay_1->setTargetLayerSize(target->getWidth(), target->getHeight());
+            mOpenfdeDisplay_1->setTargetLayerSize(display, target->getWidth(),
+                                                  target->getHeight());
         handle = target->getNativeBuffer()->handle;
     }
 
@@ -897,7 +900,6 @@ Error HidlComposer::setLayerZOrder(Display display, Layer layer, uint32_t z) {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
     mWriter.setLayerZOrder(z);
-    mLayersZMap[layer] = z;
     return Error::NONE;
 }
 
@@ -1433,35 +1435,53 @@ Error HidlComposer::getClientTargetProperty(
     return Error::NONE;
 }
 
-V2_1::Error HidlComposer::setLayerName(Display, Layer layer, std::string name) {
+V2_1::Error HidlComposer::setLayerName(Display display, Layer layer, std::string name) {
     if (!mOpenfdeDisplay) {
         ALOGE("HidlComposer::setLayerName mOpenfdeDisplay is null");
         return V2_1::Error::UNSUPPORTED;
     }
-    if (mLayersNameMap[mLayersZMap[layer]] != name) {
-        mLayersNameMap[mLayersZMap[layer]] = name;
-        return mOpenfdeDisplay->setLayerName(mLayersZMap[layer], name);
-    } else
-        return V2_1::Error::NONE;
+    if (mLayersNameMap[layer] != name) {
+        mLayersNameMap[layer] = name;
+        const V2_1::Error error = mOpenfdeDisplay->setLayerName(display, layer, name);
+        if (error != V2_1::Error::NONE) {
+            ALOGE("setLayerName: HAL returned %d. display=%" PRIu64 " layer=%" PRIu64
+                  " name=%s",
+                  static_cast<int32_t>(error), display, layer, name.c_str());
+        }
+        return error;
+    }
+    return V2_1::Error::NONE;
 }
 
-V2_1::Error HidlComposer::setLayerHandleInfo(Display, Layer layer, const sp<GraphicBuffer>& buffer) {
-    V2_1::Error error;
+V2_1::Error HidlComposer::setLayerHandleInfo(Display display, Layer layer,
+                                             const sp<GraphicBuffer>& buffer) {
     if (!mOpenfdeDisplay)
         return V2_1::Error::UNSUPPORTED;
 
-    if (buffer.get() &&
-            mLayersHandleMap[mLayersZMap[layer]] != buffer->getNativeBuffer()->handle) {
-        mLayersHandleMap[mLayersZMap[layer]] = buffer->getNativeBuffer()->handle;
-        error = mOpenfdeDisplay->setLayerHandleInfo(mLayersZMap[layer],
-                                                    buffer->getPixelFormat(),
-                                                    buffer->getStride());
-        if (error != V2_1::Error::NONE)
+    if (buffer.get() && mLayersHandleMap[layer] != buffer->getNativeBuffer()->handle) {
+        mLayersHandleMap[layer] = buffer->getNativeBuffer()->handle;
+        const V2_1::Error error = mOpenfdeDisplay->setLayerHandleInfo(display, layer,
+                                                                     buffer->getPixelFormat(),
+                                                                     buffer->getStride());
+        if (error != V2_1::Error::NONE) {
+            ALOGE("setLayerHandleInfo: HAL returned %d. display=%" PRIu64 " layer=%" PRIu64
+                  " %ux%u fmt=%d stride=%u",
+                  static_cast<int32_t>(error), display, layer,
+                  buffer->getWidth(), buffer->getHeight(), buffer->getPixelFormat(),
+                  buffer->getStride());
             return error;
+        }
 
-        if (mOpenfdeDisplay_1)
-            mOpenfdeDisplay_1->setLayerSize(mLayersZMap[layer],
-                                            buffer->getWidth(), buffer->getHeight());
+        if (mOpenfdeDisplay_1) {
+            const V2_1::Error sizeError = mOpenfdeDisplay_1->setLayerSize(
+                    display, layer, buffer->getWidth(), buffer->getHeight());
+            if (sizeError != V2_1::Error::NONE) {
+                ALOGE("setLayerSize: HAL returned %d. display=%" PRIu64 " layer=%" PRIu64
+                      " %ux%u",
+                      static_cast<int32_t>(sizeError), display, layer,
+                      buffer->getWidth(), buffer->getHeight());
+            }
+        }
     }
     return V2_1::Error::NONE;
 }

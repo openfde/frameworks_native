@@ -26,6 +26,7 @@
 #include <input/Keyboard.h>
 #include <input/PrintTools.h>
 #include <unordered_set>
+#include <cutils/properties.h>
 
 #include "PointerChoreographer.h"
 
@@ -241,7 +242,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
     NotifyMotionArgs newArgs(args);
     newArgs.displayId = displayId;
 
-    if (MotionEvent::isValidCursorPosition(args.xCursorPosition, args.yCursorPosition)) {
+    if (false/*MotionEvent::isValidCursorPosition(args.xCursorPosition, args.yCursorPosition)*/) {
         // This is an absolute mouse device that knows about the location of the cursor on the
         // display, so set the cursor position to the specified location.
         const auto position = pc.getPosition();
@@ -289,24 +290,69 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
     }
     return newArgs;
 }
+static nsecs_t lastUpdateTime = 0;
+static bool isTriggerCrossInteraction = false;
+static int lastXCursorPosition = 0;
+static ui::LogicalDisplayId lastDisplayId = ui::LogicalDisplayId::INVALID;
 
 void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArgs& newArgs,
                                                                  PointerControllerInterface& pc) {
     const float deltaX = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const float deltaY = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    ALOGD("processPointerDeviceMotionEventLocked: deltaX: %f, deltaY: %f", deltaX, deltaY);
+    ALOGD("processPointerDeviceMotionEventLocked1: newArgs.xCursorPosition: %f, newArgs.yCursorPosition: %f", newArgs.xCursorPosition, newArgs.yCursorPosition);
     const vec2 filteredDelta = filterPointerMotionForAccessibilityLocked(pc, vec2{deltaX, deltaY});
     vec2 unconsumedDelta = pc.move(filteredDelta.x, filteredDelta.y);
+    ALOGD("processPointerDeviceMotionEventLocked: std::abs(unconsumedDelta.x): %f, std::abs(unconsumedDelta.y): %f", std::abs(unconsumedDelta.x), std::abs(unconsumedDelta.y));
     if (std::abs(unconsumedDelta.x) > 0 || std::abs(unconsumedDelta.y) > 0) {
         handleUnconsumedDeltaLocked(pc, unconsumedDelta);
+        if(newArgs.displayId != pc.getDisplayId()){
+            isTriggerCrossInteraction = true;
+            lastUpdateTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        }
         // pointer may have moved to a different viewport
         newArgs.displayId = pc.getDisplayId();
     }
+    if(lastDisplayId != newArgs.displayId){
+        lastDisplayId = newArgs.displayId;
+        property_set("fde.last_display_id", lastDisplayId.toString().c_str());
+    }
+
+    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    ALOGD("processPointerDeviceMotionEventLocked: lastXCursorPosition: %d, newArgs.xCursorPosition: %f", lastXCursorPosition, newArgs.xCursorPosition);
+
+    if(std::abs(lastXCursorPosition - newArgs.xCursorPosition) > 900){
+        isTriggerCrossInteraction = true;
+        lastUpdateTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    }
+
+    if (isTriggerCrossInteraction && now - lastUpdateTime > 50 * 1000000LL) {
+        isTriggerCrossInteraction = false;
+    }
 
     const auto position = pc.getPosition();
-    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
-    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, position.y);
-    newArgs.xCursorPosition = position.x;
-    newArgs.yCursorPosition = position.y;
+    ALOGD("processPointerDeviceMotionEventLocked2: newArgs.xCursorPosition: %f, newArgs.yCursorPosition: %f", newArgs.xCursorPosition, newArgs.yCursorPosition);
+    ALOGD("processPointerDeviceMotionEventLocked: position.x: %f, position.y: %f", position.x, position.y);
+    int current_xCursorPosition = newArgs.xCursorPosition;
+    ALOGD("processPointerDeviceMotionEventLocked: isTriggerCrossInteraction: %d", isTriggerCrossInteraction);
+
+
+    if(newArgs.xCursorPosition > property_get_int32("openfde.display_width", 1920) - 10 || newArgs.xCursorPosition < 10 || isTriggerCrossInteraction){
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, newArgs.yCursorPosition);
+        newArgs.xCursorPosition = position.x;
+        //newArgs.yCursorPosition = position.y;
+        pc.setPosition(newArgs.xCursorPosition,newArgs.yCursorPosition);
+    }else{
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, newArgs.xCursorPosition);
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, newArgs.yCursorPosition);
+        pc.setPosition(newArgs.xCursorPosition,newArgs.yCursorPosition);
+    }
+
+    lastXCursorPosition = current_xCursorPosition;
+
+    //newArgs.xCursorPosition = position.x;
+    //newArgs.yCursorPosition = position.y;
 }
 
 void PointerChoreographer::handleUnconsumedDeltaLocked(PointerControllerInterface& pc,
@@ -355,6 +401,10 @@ void PointerChoreographer::handleUnconsumedDeltaLocked(PointerControllerInterfac
         mMousePointersByDisplay.end()) {
         LOG(FATAL) << "A cursor already exists on destination display"
                    << destinationViewport.displayId;
+    }
+    if(mCurrentMouseDisplayId != destinationViewport.displayId){
+        isTriggerCrossInteraction = true;
+        lastUpdateTime = systemTime(SYSTEM_TIME_MONOTONIC);
     }
     mCurrentMouseDisplayId = destinationViewport.displayId;
     auto pcNode = mMousePointersByDisplay.extract(sourceDisplayId);

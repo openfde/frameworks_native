@@ -608,6 +608,7 @@ aidl::android::hardware::graphics::composer3::Composition RequestedLayerState::g
         const {
     using aidl::android::hardware::graphics::composer3::Composition;
     // TODO(b/238781169) check about sidestream ready flag
+
     if (sidebandStream.get()) {
         return Composition::SIDEBAND;
     }
