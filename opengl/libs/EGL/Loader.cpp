@@ -65,12 +65,14 @@ namespace android {
 #endif
 
 static const char* PERSIST_DRIVER_SUFFIX_PROPERTY = "persist.graphics.egl";
+static const char* RO_PROXY_SUFFIX_PROPERTY = "ro.hardware.graphics.egl";
 static const char* RO_DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
 static const char* RO_BOARD_PLATFORM_PROPERTY = "ro.board.platform";
 static const char* ANGLE_SUFFIX_VALUE = "angle";
 
-static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
+static const char* HAL_SUBNAME_KEY_PROPERTIES[4] = {
         PERSIST_DRIVER_SUFFIX_PROPERTY,
+        RO_PROXY_SUFFIX_PROPERTY,
         RO_DRIVER_SUFFIX_PROPERTY,
         RO_BOARD_PLATFORM_PROPERTY,
 };
