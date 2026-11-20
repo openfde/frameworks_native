@@ -166,6 +166,12 @@ cc_library_shared {
     defaults: [
         "egl_libs_defaults",
     ],
+    min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
     llndk: {
         symbol_file: "libEGL.map.txt",
         export_llndk_headers: ["gl_headers"],
@@ -268,6 +274,12 @@ cc_library_shared {
 cc_library_shared {
     name: "libGLESv2",
     defaults: ["gles_libs_defaults"],
+    min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
     llndk: {
         symbol_file: "libGLESv2.map.txt",
         export_llndk_headers: ["gl_headers"],
@@ -276,6 +288,13 @@ cc_library_shared {
     },
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
+    // Provide a stub apex variant (like libEGL) so APEX dependents do not
+    // rebuild this wrapper from source, which would need libEGL-internal
+    // symbols such as egl_get_connection() absent from the LLNDK stub.
+    stubs: {
+        symbol_file: "libGLESv2.map.txt",
+        versions: ["29"],
+    },
 
     // Bug: http://b/133874658  Disable native_coverage as we investigate a
     // crash in surfaceflinger on coverage-enabled cuttlefish builds.
