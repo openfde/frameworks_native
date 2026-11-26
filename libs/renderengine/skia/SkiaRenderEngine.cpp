@@ -1028,9 +1028,6 @@ void SkiaRenderEngine::drawLayersInternal(
         logSettings(display);
     }
     for (const auto& layer : layers) {
-        if (layer.name.find("[BBQ] Sprite") != std::string::npos && display.namePlusId.find("Recording") == std::string::npos) {
-            continue;
-        }
         SFTRACE_FORMAT("DrawLayer: %s", layer.name.c_str());
 
         if (kPrintLayerSettings) {
