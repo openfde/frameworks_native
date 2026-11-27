@@ -295,6 +295,23 @@ static bool isTriggerCrossInteraction = false;
 static int lastXCursorPosition = 0;
 static ui::LogicalDisplayId lastDisplayId = ui::LogicalDisplayId::INVALID;
 
+// OpenFDE: return the width of the display the pointer is currently on.
+// The edge check below must use the current display's width: using the
+// primary display width for a wider external display makes its right portion
+// (e.g. 1920..2560 of a 2560-wide panel) look like a right-edge push, which
+// enters the "near edge" branch and replaces the absolute X11 coordinate with
+// the scaled REL-driven position - the crosshair then outruns the X11 cursor.
+static int currentDisplayWidth() {
+    int width = property_get_int32("openfde.display_width", 1920);
+    if (lastDisplayId.isValid() && lastDisplayId.val() != 0) {
+        const int external = property_get_int32("openfde.external_display_width", 0);
+        if (external > 0) {
+            width = external;
+        }
+    }
+    return width;
+}
+
 void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArgs& newArgs,
                                                                  PointerControllerInterface& pc) {
     const float deltaX = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
@@ -337,7 +354,7 @@ void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArg
     ALOGD("processPointerDeviceMotionEventLocked: isTriggerCrossInteraction: %d", isTriggerCrossInteraction);
 
 
-    if(newArgs.xCursorPosition > property_get_int32("openfde.display_width", 1920) - 10 || newArgs.xCursorPosition < 10 || isTriggerCrossInteraction){
+    if(newArgs.xCursorPosition > currentDisplayWidth() - 10 || newArgs.xCursorPosition < 10 || isTriggerCrossInteraction){
         newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
         newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, newArgs.yCursorPosition);
         newArgs.xCursorPosition = position.x;
